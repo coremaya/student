@@ -44,7 +44,7 @@
         <p>Google Cloud Text-to-Speech enables developers to synthesize natural-sounding speech with 100+ voices, available in multiple languages and variants.</p>
         <p>It applies DeepMind’s groundbreaking research in WaveNet and Google’s powerful neural networks to deliver the highest fidelity possible.</p>
 
-        <p class="yifont">This is an example of English text for pronunciation.</p>
+        <p>This is an example of English text for pronunciation.</p>
         <p>这是中文示例文本</p>
         <p>ベッドで寝る</p>
     </div>
@@ -107,7 +107,7 @@
         }
 
         // Google Cloud Text-to-Speech 请求
-        function googleTTS(text) {
+        function googleTTS(text, langCode) {
             const apiKey = 'AIzaSyByjg4ilsTbdcUK0BgFQIkA8TTcQwBMFCQ';  // 替换为你的 Google Cloud API 密钥
 
             const url = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${apiKey}`;
@@ -117,8 +117,8 @@
                     text: text
                 },
                 voice: {
-                    languageCode: 'en-US',  // 英语语言代码
-                    name: 'en-US-Wavenet-C' // 语音选择
+                    languageCode: langCode,  // 根据语言动态设置
+                    name: langCode === 'ja-JP' ? 'ja-JP-Wavenet-A' : (langCode === 'zh-CN' ? 'cmn-CN-Wavenet-A' : 'en-US-Wavenet-C') // 中文使用 cmn-CN-Wavenet-A，日语使用 ja-JP-Wavenet-A，其他语言使用 en-US-Wavenet-C
                 },
                 audioConfig: {
                     audioEncoding: 'MP3'  // 返回 MP3 格式
@@ -154,19 +154,18 @@
             });
         }
 
-        // 检测文本中是否包含中文字符
+        // 检测文本中是否完全是汉字
         function containsChinese(text) {
-            const chineseRegex = /[\u4e00-\u9fff]/; // 匹配中文字符
+            const chineseRegex = /^[\u4e00-\u9fff]+$/; // 只匹配完全由汉字组成的文本
             return chineseRegex.test(text);
         }
 
-     
-        // 检测文本中是否包含日语字符（平假名、片假名、和汉字）
-		function containsJapanese(text) {
-			const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/; // 平假名、片假名和汉字
-			return japaneseRegex.test(text);
-		}
-
+        // 检测文本中是否包含日语字符（平假名、片假名或混合汉字）
+        function containsJapanese(text) {
+            const kanaRegex = /[\u3040-\u309F\u30A0-\u30FF]/; // 平假名和片假名
+            const chineseOrKanaMixedRegex = /[\u4e00-\u9fff]+[\u3040-\u309F\u30A0-\u30FF]+|[\u3040-\u309F\u30A0-\u30FF]+[\u4e00-\u9fff]+/; // 汉字与平假名/片假名混合
+            return kanaRegex.test(text) || chineseOrKanaMixedRegex.test(text); // 如果包含平假名、片假名，或者汉字与平假名/片假名混合，则判定为日语
+        }
 
         // 检测文本中是否包含英语字符
         function containsEnglish(text) {
@@ -174,16 +173,26 @@
             return englishRegex.test(text);
         }
 
+        // 提示用户选择中文或日语发音
+        function promptForLanguageSelection(text) {
+            const userChoice = confirm("该文本包含全汉字，是否要将其朗读为日语？点击确认为日语，点击取消为中文。");
+            if (userChoice) {
+                googleTTS(text, 'ja-JP'); // 如果选择日语，则调用 Google TTS 日语语音合成
+            } else {
+                baiduTTS(text, 'zh'); // 如果选择中文，则调用百度 TTS 中文语音合成
+            }
+        }
+
         // 朗读选中的文本
         function readSelectedText() {
             const selectedText = window.getSelection().toString().trim(); // 获取选中的文本
             if (selectedText) { // 如果选中有文本
                 if (containsChinese(selectedText)) {
-                    baiduTTS(selectedText, 'zh');  // 调用百度语音合成
+                    promptForLanguageSelection(selectedText);  // 全汉字文本，弹出选择框
                 } else if (containsJapanese(selectedText)) {
-                    baiduTTS(selectedText, 'ja');  // 调用百度语音合成（假设支持日语）
+                    googleTTS(selectedText, 'ja-JP');  // 日语通过 Google TTS
                 } else if (containsEnglish(selectedText)) {
-                    googleTTS(selectedText);  // 调用 Google TTS
+                    googleTTS(selectedText, 'en-US');  // 英语通过 Google TTS
                 } else {
                     alert("只支持中文、日语和英语朗读");
                 }
