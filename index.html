@@ -3,66 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微软 TTS 免费部署</title>
+    <title>百度 & Google 语音合成 Demo</title>
+    <style>
+        body {
+            text-align: left;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .yifont {
+            font-family: simhei;
+            font-size:1.5em;
+            color:#ff0000
+        }
+
+        #download-button {
+            display: none;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        #download-button:hover {
+            background-color: #45a049;
+        }
+    </style>
 </head>
 <body>
-    <h1>微软 TTS 示例</h1>
-    <textarea id="text-input" rows="4" cols="50">请输入文本...</textarea><br><br>
-    <button onclick="speakText()">播放语音</button>
+    <div class="container">
+        <h1>百度 & Google 语音合成 Demo</h1>
+        <!-- 示例文本 -->
+        <p>Select some text to read aloud</p>
+        <p>Google Cloud Text-to-Speech enables developers to synthesize natural-sounding speech with 100+ voices, available in multiple languages and variants.</p>
+        <p>It applies DeepMind’s groundbreaking research in WaveNet and Google’s powerful neural networks to deliver the highest fidelity possible.</p>
+
+        <p class="yifont">This is an example of English text for pronunciation.</p>
+        <p>这是中文示例文本</p>
+        <p>ベッドで寝る</p>
+    </div>
+
+    <button id="download-button" onclick="downloadAudio()">下载音频</button>
 
     <script>
-        const subscriptionKey = "EnAqcnMkoVc5O2yW9IosQN4pJ6JC526EBtcgrafmAXNlX80RE69iJQQJ99BAACYeBjFXJ3w3AAAYACOG3Pfr";
-        const region = "eastus";
-        
-        async function speakText() {
-            const text = document.getElementById("text-input").value;
-            const endpoint = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
+        let audioBlobUrl = null; // 用来存储音频文件的 URL
+        let downloadTimer = null; // 用来存储定时器 ID
 
-            const ssml = `
-                <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-                    <voice name="zh-CN-XiaoxiaoNeural">
-                        ${text}
-                    </voice>
-                </speak>
-            `;
+        // 百度语音合成接口的POST请求
+        function baiduTTS(text, lang) {
+            const accessToken = "24.d586841726232edacc3b9780256967ff.2592000.1738660657.282335-116964758";  // 替换为你的access_token
+            const cuid = "8OkJ5ZoGrlndKBEjNlDAsOwKAKN3Za5l";  // 替换为你的设备唯一标识
 
-            const headers = {
-                "Content-Type": "application/ssml+xml",
-                "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
-                "Authorization": `Bearer ${await getAuthToken()}`
+            const url = "https://tsn.baidu.com/text2audio";
+            const encodedText = encodeURIComponent(text);
+            
+            const data = {
+                tex: encodedText,
+                lan: lang,  // 语言
+                cuid: cuid,
+                ctp: 1,
+                tok: accessToken,
+                spd: 5, // 语速
+                pit: 5, // 音调
+                vol: 5, // 音量
+                per: 0, // 发音人
+                aue: 3  // 返回MP3格式
             };
 
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: headers,
-                body: ssml
-            });
+            const formData = new URLSearchParams();
+            for (let key in data) {
+                formData.append(key, data[key]);
+            }
 
-            if (response.ok) {
-                const audioBlob = await response.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-                const audio = new Audio(audioUrl);
-                audio.play();
-            } else {
-                console.error("请求失败:", response.status, await response.text());
+            fetch(url, {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                audioBlobUrl = URL.createObjectURL(blob); // 创建 Blob URL
+                const audio = new Audio(audioBlobUrl);
+                audio.play();  // 播放音频
+
+                // 在播放完成后显示下载按钮，并启动定时器
+                audio.onended = () => {
+                    document.getElementById('download-button').style.display = 'block'; // 显示下载按钮
+
+                    // 启动定时器，10秒后隐藏下载按钮
+                    downloadTimer = setTimeout(() => {
+                        document.getElementById('download-button').style.display = 'none'; // 隐藏按钮
+                    }, 10000); // 10秒后隐藏
+                };
+            })
+            .catch(error => {
+                console.error("百度语音合成失败:", error);
+            });
+        }
+
+        // Google Cloud Text-to-Speech 请求
+        function googleTTS(text) {
+            const apiKey = 'AIzaSyByjg4ilsTbdcUK0BgFQIkA8TTcQwBMFCQ';  // 替换为你的 Google Cloud API 密钥
+
+            const url = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${apiKey}`;
+            
+            const requestData = {
+                input: {
+                    text: text
+                },
+                voice: {
+                    languageCode: 'en-US',  // 英语语言代码
+                    name: 'en-US-Wavenet-C' // 语音选择
+                },
+                audioConfig: {
+                    audioEncoding: 'MP3'  // 返回 MP3 格式
+                }
+            };
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                const audioContent = data.audioContent;
+                audioBlobUrl = "data:audio/mp3;base64," + audioContent; // 保存音频 URL
+                const audio = new Audio(audioBlobUrl);
+                audio.play();  // 播放音频
+
+                // 在播放完成后显示下载按钮，并启动定时器
+                audio.onended = () => {
+                    document.getElementById('download-button').style.display = 'block'; // 显示下载按钮
+
+                    // 启动定时器，10秒后隐藏下载按钮
+                    downloadTimer = setTimeout(() => {
+                        document.getElementById('download-button').style.display = 'none'; // 隐藏按钮
+                    }, 10000); // 10秒后隐藏
+                };
+            })
+            .catch(error => {
+                console.error("Google语音合成失败:", error);
+            });
+        }
+
+        // 检测文本中是否包含中文字符
+        function containsChinese(text) {
+            const chineseRegex = /[\u4e00-\u9fff]/; // 匹配中文字符
+            return chineseRegex.test(text);
+        }
+
+     
+        // 检测文本中是否包含日语字符（平假名、片假名、和汉字）
+		function containsJapanese(text) {
+			const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/; // 平假名、片假名和汉字
+			return japaneseRegex.test(text);
+		}
+
+
+        // 检测文本中是否包含英语字符
+        function containsEnglish(text) {
+            const englishRegex = /[a-zA-Z]/; // 匹配英文字符
+            return englishRegex.test(text);
+        }
+
+        // 朗读选中的文本
+        function readSelectedText() {
+            const selectedText = window.getSelection().toString().trim(); // 获取选中的文本
+            if (selectedText) { // 如果选中有文本
+                if (containsChinese(selectedText)) {
+                    baiduTTS(selectedText, 'zh');  // 调用百度语音合成
+                } else if (containsJapanese(selectedText)) {
+                    baiduTTS(selectedText, 'ja');  // 调用百度语音合成（假设支持日语）
+                } else if (containsEnglish(selectedText)) {
+                    googleTTS(selectedText);  // 调用 Google TTS
+                } else {
+                    alert("只支持中文、日语和英语朗读");
+                }
             }
         }
 
-        async function getAuthToken() {
-            const tokenEndpoint = `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token`;
-            const params = new URLSearchParams();
-            params.append("grant_type", "client_credentials");
-            params.append("client_id", "YOUR_CLIENT_ID");
-            params.append("client_secret", "YOUR_CLIENT_SECRET");
-            params.append("scope", "https://speech.platform.bing.com/.default");
+        // 监听鼠标释放事件，选中文本后触发朗读
+        document.addEventListener("mouseup", readSelectedText);
 
-            const response = await fetch(tokenEndpoint, {
-                method: "POST",
-                body: params
-            });
-
-            const data = await response.json();
-            return data.access_token;
+        // 下载音频
+        function downloadAudio() {
+            const link = document.createElement('a');
+            link.href = audioBlobUrl;
+            link.download = 'speech.mp3';  // 默认下载文件名
+            link.click();  // 模拟点击链接，下载文件
+            document.getElementById('download-button').style.display = 'none'; // 隐藏下载按钮
+            clearTimeout(downloadTimer); // 清除定时器
         }
     </script>
 </body>
